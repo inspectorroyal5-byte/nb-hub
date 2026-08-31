@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NB Hub - Login & Register</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+
+  <header>
+    <h1>NB HUB</h1>
+    <div class="nav-links">
+      <a href="/index.html">Home</a>
+    </div>
+  </header>
+
+  <div class="auth-card">
+    <h2 id="formTitle" style="color: var(--primary-color); margin-top: 0;">Login to NB Hub</h2>
+    <form id="authForm" onsubmit="handleAuth(event)">
+      <label>Username</label>
+      <input type="text" id="username" required>
+      
+      <label>Password</label>
+      <input type="password" id="password" required>
+
+      <button type="submit" class="action-btn" id="submitBtn">Login</button>
+    </form>
+    
+    <p id="message" style="margin-top: 15px; font-weight: bold; text-align: center;"></p>
+    
+    <hr style="border-color: var(--border-color); margin: 20px 0;">
+    <p style="text-align: center; margin: 0; color: var(--text-muted);">
+      <span id="toggleText">Don't have an account?</span>
+      <a href="#" onclick="toggleMode()" id="toggleLink" style="color: var(--primary-color); font-weight: bold;">Register Here</a>
+    </p>
+  </div>
+
+  <script>
+    let isLogin = true;
+
+    function toggleMode() {
+      isLogin = !isLogin;
+      document.getElementById('formTitle').innerText = isLogin ? 'Login to NB Hub' : 'Create Account';
+      document.getElementById('submitBtn').innerText = isLogin ? 'Login' : 'Register';
+      document.getElementById('toggleText').innerText = isLogin ? "Don't have an account?" : "Already have an account?";
+      document.getElementById('toggleLink').innerText = isLogin ? 'Register Here' : 'Login Here';
+      document.getElementById('message').innerText = '';
+    }
+
+    async function handleAuth(event) {
+      event.preventDefault();
+      const username = document.getElementById('username').value;
+      const password = document.getElementById('password').value;
+      const endpoint = isLogin ? '/api/login' : '/api/register';
+      const msgEl = document.getElementById('message');
+
+      try {
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        });
+        const data = await res.json();
+
+        if (!res.ok) throw new Error(data.message);
+
+        if (isLogin) {
+          localStorage.setItem('nb_token', data.token);
+          localStorage.setItem('nb_role', data.role);
+          localStorage.setItem('nb_user', data.username);
+          msgEl.style.color = '#5cb85c';
+          msgEl.innerText = 'Login successful! Redirecting...';
+          setTimeout(() => window.location.href = '/index.html', 1000);
+        } else {
+          msgEl.style.color = '#5cb85c';
+          msgEl.innerText = 'Account created! Switching to login...';
+          setTimeout(() => toggleMode(), 1200);
+        }
+      } catch (err) {
+        msgEl.style.color = '#d9534f';
+        msgEl.innerText = err.message;
+      }
+    }
+  </script>
+</body>
+</html>

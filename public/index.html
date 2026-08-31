@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NB Hub - Home</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+
+  <header>
+    <h1>NB HUB</h1>
+    <input type="text" id="searchInput" class="search-bar" placeholder="Search videos by title..." onkeyup="filterVideos()">
+    <div class="nav-links">
+      <span id="userGreeting" style="margin-right: 15px; font-weight: bold; color: #aaa;"></span>
+      <a href="/admin.html" id="adminLink" style="display: none;">Admin Panel</a>
+      <a href="/login.html" id="loginLink">Login / Register</a>
+      <button id="logoutBtn" style="display: none;" onclick="logout()">Logout</button>
+    </div>
+  </header>
+
+  <!-- Categories -->
+  <div class="categories" id="categoryContainer">
+    <button class="cat-btn active" onclick="filterCategory('All', this)">All</button>
+    <button class="cat-btn" onclick="filterCategory('Action', this)">Action</button>
+    <button class="cat-btn" onclick="filterCategory('Comedy', this)">Comedy</button>
+    <button class="cat-btn" onclick="filterCategory('Tutorial', this)">Tutorial</button>
+    <button class="cat-btn" onclick="filterCategory('Gaming', this)">Gaming</button>
+    <button class="cat-btn" onclick="filterCategory('General', this)">General</button>
+  </div>
+
+  <!-- Video Grid -->
+  <div class="grid" id="videoGrid">
+    <p style="color: var(--text-muted);">Loading videos...</p>
+  </div>
+
+  <script>
+    const token = localStorage.getItem('nb_token');
+    const username = localStorage.getItem('nb_user');
+    const role = localStorage.getItem('nb_role');
+    let allVideos = [];
+    let selectedCategory = 'All';
+
+    // Update Navigation based on Auth status
+    if (token) {
+      document.getElementById('loginLink').style.display = 'none';
+      document.getElementById('logoutBtn').style.display = 'inline-block';
+      document.getElementById('userGreeting').innerText = `Hello, ${username}`;
+      if (role === 'admin') {
+        document.getElementById('adminLink').style.display = 'inline-block';
+      }
+      loadVideos();
+    } else {
+      document.getElementById('videoGrid').innerHTML = '<p style="color: #fff;">Please <a href="/login.html" style="color: var(--primary-color);">Login</a> to watch videos.</p>';
+    }
+
+    function logout() {
+      localStorage.clear();
+      window.location.href = '/login.html';
+    }
+
+    async function loadVideos() {
+      try {
+        const res = await fetch('/api/videos', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!res.ok) throw new Error('Failed to load');
+        allVideos = await res.json();
+        renderVideos(allVideos);
+      } catch (err) {
+        document.getElementById('videoGrid').innerHTML = '<p style="color: var(--primary-color);">Failed to fetch videos. Session may be expired.</p>';
+      }
+    }
+
+    function renderVideos(videos) {
+      const grid = document.getElementById('videoGrid');
+      grid.innerHTML = '';
+
+      if (videos.length === 0) {
+        grid.innerHTML = '<p style="color: var(--text-muted);">No videos found.</p>';
+        return;
+      }
+
+      videos.forEach(video => {
+        const card = document.createElement('div');
+        card.className = 'card';
+
+        const thumbUrl = video.thumbnail ? `${video.thumbnail}?token=${token}` : '';
+        const videoUrl = `${video.url}?token=${token}`;
+
+        card.innerHTML = `
+          <div class="thumbnail-container">
+            ${video.thumbnail ? `<img src="${thumbUrl}" alt="Thumbnail">` : `<div style="width:100%;height:100%;background:#333;"></div>`}
+            <span class="badge">${video.category || 'General'}</span>
+          </div>
+          <div class="card-body">
+            <h3 class="card-title">${video.title}</h3>
+            <div class="meta">Eye Views: <span id="views-${video.id}">${video.views || 0}</span></div>
+            <video controls onplay="trackView(${video.id})">
+              <source src="${videoUrl}" type="video/mp4">
+              Your browser does not support video streaming.
+            </video>
+            <a href="${videoUrl}" download class="download-btn">Download Video</a>
+            
+            <div class="comments-section">
+              <div class="comment-input">
+                <input type="text" id="input-${video.id}" placeholder="Write a comment...">
+                <button onclick="postComment(${video.id})">Post</button>
+              </div>
+              <div class="comment-list" id="comments-${video.id}">Loading comments...</div>
+            </div>
+          </div>
+        `;
+        grid.appendChild(card);
+        fetchComments(video.id);
+      });
+    }
+
+    function filterVideos() {
+      const query = document.getElementById('searchInput').value.toLowerCase();
+      const filtered = allVideos.filter(v => {
+        const matchesCategory = selectedCategory === 'All' || v.category === selectedCategory;
+        const matchesQuery = v.title.toLowerCase().includes(query);
+        return matchesCategory && matchesQuery;
+      });
+      renderVideos(filtered);
+    }
+
+    function filterCategory(cat, btn) {
+      document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      selectedCategory = cat;
+      filterVideos();
+    }
+
+    async function trackView(videoId) {
+      await fetch(`/api/videos/${videoId}/view`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const viewEl = document.getElementById(`views-${videoId}`);
+      if (viewEl) viewEl.innerText = parseInt(viewEl.innerText) + 1;
+    }
+
+    async function fetchComments(videoId) {
+      const res = await fetch(`/api/videos/${videoId}/comments`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const comments = await res.json();
+      const listEl = document.getElementById(`comments-${videoId}`);
+      listEl.innerHTML = comments.map(c => `
+        <div class="comment-item">
+          <span class="comment-user">${c.username}:</span> ${c.comment}
+        </div>
+      `).join('');
+    }
+
+    async function postComment(videoId) {
+      const input = document.getElementById(`input-${videoId}`);
+      const comment = input.value;
+      if (!comment) return;
+
+      await fetch(`/api/videos/${videoId}/comments`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ comment })
+      });
+      input.value = '';
+      fetchComments(videoId);
+    }
+  </script>
+</body>
+</html>
