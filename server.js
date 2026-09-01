@@ -16,8 +16,13 @@ app.use(express.urlencoded({ extended: true }));
 // Serve static frontend assets (HTML, CSS, JS from 'public' folder)
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Configure Multer to stream uploads straight to Cloudinary
+// Configure Multer to stream uploads directly to Cloudinary
 const upload = multer({ storage: storage });
+
+// ----------------------------------------------------
+// IN-MEMORY DATA STORAGE (Temporary until DB connection)
+// ----------------------------------------------------
+const uploadedVideos = [];
 
 // ----------------------------------------------------
 // AUTHENTICATION HANDLERS
@@ -63,13 +68,31 @@ const handleRegister = (req, res) => {
   }
 };
 
-// Map routes for both /api/login and /login to prevent 404 errors
+// Map routes for both /api/* and root paths
 app.post('/api/login', handleLogin);
 app.post('/login', handleLogin);
 
-// Map routes for both /api/register and /register
 app.post('/api/register', handleRegister);
 app.post('/register', handleRegister);
+
+// ----------------------------------------------------
+// VIDEO FEED & FETCH HANDLERS
+// ----------------------------------------------------
+
+const handleGetVideos = (req, res) => {
+  try {
+    // Returns array of uploaded videos to satisfy frontend fetch demands
+    return res.json({ 
+      success: true, 
+      videos: uploadedVideos 
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+app.get('/api/videos', handleGetVideos);
+app.get('/videos', handleGetVideos);
 
 // ----------------------------------------------------
 // VIDEO UPLOAD ROUTE (Cloudinary Integration)
@@ -85,13 +108,20 @@ app.post('/upload', upload.single('video'), (req, res) => {
     const videoUrl = req.file.path; 
     const videoTitle = req.body.title || 'Untitled Video';
 
+    const newVideo = {
+      id: Date.now(),
+      title: videoTitle,
+      url: videoUrl
+    };
+
+    uploadedVideos.unshift(newVideo);
+
     console.log(`Video uploaded successfully to Cloudinary: ${videoUrl}`);
 
     res.json({
       success: true,
       message: 'Video uploaded to Cloudinary!',
-      title: videoTitle,
-      url: videoUrl
+      video: newVideo
     });
   } catch (error) {
     console.error('Upload error:', error);
