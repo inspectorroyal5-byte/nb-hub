@@ -20,11 +20,10 @@ app.use(express.static(path.join(__dirname, 'public')));
 const upload = multer({ storage: storage });
 
 // ----------------------------------------------------
-// AUTHENTICATION ROUTES (Returns JSON to prevent syntax errors)
+// AUTHENTICATION HANDLERS
 // ----------------------------------------------------
 
-// POST /login
-app.post('/login', (req, res) => {
+const handleLogin = (req, res) => {
   try {
     const { username, password } = req.body;
 
@@ -32,46 +31,50 @@ app.post('/login', (req, res) => {
       return res.status(400).json({ success: false, message: 'Please enter both username and password.' });
     }
 
-    // Temporary basic verification (Replace with your database query logic if using DB)
     console.log(`Login attempt for user: ${username}`);
     
-    // Respond with valid JSON
-    res.json({ 
+    // Always respond with JSON
+    return res.json({ 
       success: true, 
       message: 'Login successful!',
       user: { username } 
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: error.message });
   }
-});
+};
 
-// POST /register
-app.post('/register', (req, res) => {
+const handleRegister = (req, res) => {
   try {
     const { username, password } = req.body;
 
     if (!username || !password) {
-      return res.status(400).json({ success: false, message: 'Please provide all registration fields.' });
+      return res.status(400).json({ success: false, message: 'Please fill in all registration fields.' });
     }
 
-    // Temporary registration logic
     console.log(`Registered new user: ${username}`);
 
-    res.json({ 
+    return res.json({ 
       success: true, 
       message: 'Registration successful! You can now log in.' 
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: error.message });
   }
-});
+};
+
+// Map routes for both /api/login and /login to prevent 404 errors
+app.post('/api/login', handleLogin);
+app.post('/login', handleLogin);
+
+// Map routes for both /api/register and /register
+app.post('/api/register', handleRegister);
+app.post('/register', handleRegister);
 
 // ----------------------------------------------------
 // VIDEO UPLOAD ROUTE (Cloudinary Integration)
 // ----------------------------------------------------
 
-// POST /upload
 app.post('/upload', upload.single('video'), (req, res) => {
   try {
     if (!req.file) {
@@ -96,7 +99,7 @@ app.post('/upload', upload.single('video'), (req, res) => {
   }
 });
 
-// Catch-all route to serve main page if unknown route is hit
+// Catch-all route to serve main frontend index page
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
